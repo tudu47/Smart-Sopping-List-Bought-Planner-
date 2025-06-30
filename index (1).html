@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Shopping List & Bought Planner</title>
+    <!-- Library for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- NEW: Library to convert HTML to an Image (Canvas) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --secondary-color: #a29bfe;
+            --accent-color: #fd79a8;
+            --background-color: #f8f9fa;
+            --card-color: #ffffff;
+            --text-color: #2d3436;
+            --shadow: 0 10px 20px rgba(0,0,0,0.1), 0 6px 6px rgba(0,0,0,0.1);
+            --success-color: #00b894;
+            --danger-color: #d63031;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #6c5ce7;
+            --secondary-color: #5649c0;
+            --accent-color: #e84393;
+            --background-color: #2d3436;
+            --card-color: #3a4042;
+            --text-color: #f8f9fa;
+            --shadow: 0 10px 20px rgba(0,0,0,0.3), 0 6px 6px rgba(0,0,0,0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--background-color); color: var(--text-color); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px 0; border-bottom: 2px solid var(--secondary-color); }
+        h1 { font-size: 2.5rem; background: linear-gradient(45deg, var(--primary-color), var(--accent-color)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .controls { display: flex; align-items: center; }
+        .theme-toggle, .language-selector { padding: 8px 15px; border-radius: 20px; border: none; background-color: var(--primary-color); color: white; cursor: pointer; font-weight: bold; margin-left: 10px; box-shadow: var(--shadow); }
+        .app-container { display: flex; flex-direction: column; gap: 30px; }
+        .main-section { display: grid; grid-template-columns: 1fr; gap: 30px; }
+        .card { background-color: var(--card-color); border-radius: 15px; padding: 25px; box-shadow: var(--shadow); animation: fadeIn 0.5s ease; }
+        .card-title { font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-color); display: flex; align-items: center; gap: 10px; }
+        .card-title svg { width: 24px; height: 24px; }
+        .input-group, .form-group { display: flex; margin-bottom: 20px; }
+        .input-group input, .form-group input, .planner-custom-input { flex: 1; padding: 12px 15px; border: 2px solid var(--secondary-color); border-radius: 30px 0 0 30px; font-size: 1rem; outline: none; background-color: var(--card-color); color: var(--text-color); }
+        .form-group input { border-radius: 30px; }
+        .add-btn, .action-btn, .planner-add-custom { padding: 12px 20px; background-color: var(--primary-color); color: white; border: none; border-radius: 0 30px 30px 0; cursor: pointer; font-weight: bold; transition: all 0.3s; }
+        .action-btn, .planner-save-btn { border-radius: 30px; }
+        .add-btn:hover, .action-btn:hover, .planner-add-custom:hover, .planner-save-btn:hover { background-color: var(--accent-color); transform: translateY(-2px); }
+        .list { list-style: none; margin-bottom: 20px; max-height: 300px; overflow-y: auto; padding-right: 10px; }
+        .list::-webkit-scrollbar { width: 8px; }
+        .list::-webkit-scrollbar-track { background: var(--secondary-color); border-radius: 10px; }
+        .list::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 10px; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; margin-bottom: 10px; background-color: var(--background-color); border-radius: 10px; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .item-content { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+        .item-name { word-break: break-word; }
+        .item-emoji { font-size: 1.2rem; }
+        .item-date { font-size: 0.8rem; color: var(--secondary-color); margin-right: 10px; }
+        .delete-btn, .history-delete-btn { background: none; border: none; cursor: pointer; color: var(--accent-color); font-size: 1.1rem; transition: all 0.2s; flex-shrink: 0; }
+        .delete-btn:hover, .history-delete-btn:hover { color: #e84393; transform: scale(1.1); }
+        .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .clear-btn, .share-btn, .save-btn { padding: 10px 15px; border-radius: 30px; color: white; font-weight: bold; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.3s; }
+        .clear-btn:hover, .share-btn:hover, .save-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .clear-btn { background-color: #ff7675; }
+        .share-btn { background-color: var(--success-color); }
+        .save-btn { background-color: var(--primary-color); }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; margin-bottom: 10px; background-color: var(--background-color); border-radius: 10px; border-left: 4px solid var(--primary-color); animation: fadeIn 0.3s ease; }
+        .history-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .history-product { font-weight: bold; margin-bottom: 5px; word-break: break-word; }
+        .history-date { font-size: 0.8rem; color: var(--secondary-color); }
+        .history-date span { display: block; }
+        .planner { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        .planner-item { background-color: var(--background-color); padding: 15px; border-radius: 10px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .planner-item:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .planner-month { font-weight: bold; margin-bottom: 10px; color: var(--primary-color); }
+        .tab-buttons { display: flex; margin-bottom: 20px; border-bottom: 2px solid var(--secondary-color); flex-wrap: wrap; }
+        .tab-btn { padding: 10px 20px; background: none; border: none; cursor: pointer; font-weight: bold; color: var(--secondary-color); position: relative; }
+        .tab-btn.active { color: var(--primary-color); }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px; background-color: var(--primary-color); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--secondary-color); }
+        .empty-state svg { width: 80px; height: 80px; margin-bottom: 20px; opacity: 0.7; }
+        .planner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .planner-modal-content { background-color: var(--card-color); padding: 30px; border-radius: 15px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: var(--shadow); }
+        .planner-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .planner-modal-title { font-size: 1.5rem; color: var(--primary-color); }
+        .close-planner-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--accent-color); }
+        .planner-items-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .planner-item-checkbox { display: none; }
+        .planner-item-label { display: block; padding: 10px; background-color: var(--background-color); border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.2s; word-break: break-word; }
+        .planner-item-checkbox:checked + .planner-item-label { background-color: var(--primary-color); color: white; }
+        .planner-custom-item { display: flex; margin-top: 20px; }
+        .planner-custom-input { border-radius: 8px 0 0 8px; }
+        .planner-add-custom { border-radius: 0 8px 8px 0; }
+        .planner-save-btn { display: block; width: 100%; padding: 12px; margin-top: 20px; cursor: pointer; }
+        .financial-planner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        #financialSummary { background-color: var(--background-color); padding: 20px; border-radius: 10px; }
+        #financialSummary h3 { margin-bottom: 15px; color: var(--primary-color); }
+        #financialSummary p { margin-bottom: 10px; font-size: 1.1rem; display: flex; justify-content: space-between; }
+        #financialSummary p span:last-child { font-weight: bold; }
+        #expenseList { list-style: none; max-height: 250px; overflow-y: auto; padding-right: 10px; }
+        /* CSS FIX for Financial Planner */
+        .expense-item { display: flex; justify-content: space-between; align-items: center; background-color: var(--background-color); padding: 10px; border-radius: 8px; margin-bottom: 8px; gap: 10px; }
+        .expense-item span:first-child { flex: 1; min-width: 0; word-break: break-word; } /* Allows wrapping */
+        .expense-item span:nth-child(2) { flex-shrink: 0; } /* Prevents amount from shrinking */
+        
+        #chartContainer { position: relative; min-height: 300px; }
+        .calculators-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; }
+        .calculator-section { background-color: var(--background-color); padding: 20px; border-radius: 10px; }
+        .calculator-section h3 { margin-bottom: 20px; color: var(--primary-color); }
+        .calc-form-group { margin-bottom: 15px; }
+        .calc-form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .calc-form-group input { width: 100%; padding: 10px; border: 2px solid var(--secondary-color); border-radius: 8px; background-color: var(--card-color); color: var(--text-color); }
+        .calc-results p { margin-top: 15px; font-weight: bold; }
+        .calc-results span { color: var(--primary-color); }
+        .standard-calculator { max-width: 320px; margin: auto; }
+        .calc-display { background-color: var(--card-color); color: var(--text-color); font-size: 2.5rem; padding: 20px; text-align: right; border-radius: 10px; margin-bottom: 15px; word-wrap: break-word; word-break: break-all; }
+        .calc-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .calc-btn { padding: 20px; font-size: 1.2rem; border-radius: 8px; border: none; background-color: var(--card-color); color: var(--text-color); cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .calc-btn:hover { opacity: 0.9; }
+        .calc-btn.operator { background-color: var(--secondary-color); color: white; }
+        .calc-btn.equals { background-color: var(--primary-color); color: white; grid-column: span 2; }
+        .calc-btn.clear { background-color: var(--danger-color); color: white; }
+
+        @media (max-width: 900px) { .financial-planner-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { header { flex-direction: column; align-items: flex-start; gap: 15px; } .controls { width: 100%; justify-content: space-between; } }
+    </style>
+</head>
+<body>
+    <!-- The HTML body is identical to the previous version, so it's not repeated here for brevity -->
+    <!-- Just make sure to include all tabs and modal HTML as before -->
+    <div class="container">
+        <header>
+            <h1 data-translate="app_title">Smart Shopping List & Bought Planner</h1>
+            <div class="controls">
+                 <select class="language-selector" id="languageSelector">
+                    <option value="en">English</option>
+                    <option value="hi">हिंदी</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="bn">বাংলা</option>
+                    <option value="sat">संथाली</option>
+                </select>
+                <button class="theme-toggle" id="themeToggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="app-container">
+            <div class="tab-buttons">
+                <button class="tab-btn active" data-tab="shopping" data-translate="shopping_list_tab">Shopping</button>
+                <button class="tab-btn" data-tab="history" data-translate="history_tab">History</button>
+                <button class="tab-btn" data-tab="planner" data-translate="planner_tab">Monthly Shopping</button>
+                <button class="tab-btn" data-tab="financial" data-translate="financial_planner_tab">Financial Planner</button>
+                <button class="tab-btn" data-tab="calculators" data-translate="calculators_tab">Calculators</button>
+            </div>
+
+            <div class="main-section">
+                <div class="card tab-content active" id="shoppingTab">
+                    <h2 class="card-title"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM3.102 4l1.313 7h8.17l1.313-7H3.102zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span data-translate="shopping_list"></span></h2>
+                    <div class="input-group"><input type="text" id="itemInput" data-translate="add_item_placeholder"><button class="add-btn" id="addBtn" data-translate="add"></button></div>
+                    <ul class="list" id="shoppingList"></ul>
+                    <div class="action-buttons">
+                        <button class="clear-btn" id="clearBtn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg><span data-translate="clear_all"></span></button>
+                        <button class="share-btn" id="shareBtn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.499 2.499 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5zm-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg><span data-translate="share"></span></button>
+                        <button class="save-btn" id="saveBtn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg><span data-translate="save"></span></button>
+                    </div>
+                </div>
+                <div class="card tab-content" id="historyTab">
+                     <h2 class="card-title"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16"><path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933zm1.37.71a7.01 7.01 0 0 0-.439-.27l.493-.87a8.025 8.025 0 0 1 .979.654l-.615.789a6.996 6.996 0 0 0-.418-.302zm1.834 1.79a6.99 6.99 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7.08 7.08 0 0 0-.214-.468l.893-.45a7.976 7.976 0 0 1 .45 1.088l-.95.313a7.023 7.023 0 0 0-.179-.483zm.53 2.507a6.991 6.991 0 0 0-.1-1.025l.985-.17c.067.386.106.778.116 1.17l-1 .025zm-.131 1.538c.033-.17.06-.339.081-.51l.993.123a7.957 7.957 0 0 1-.23 1.155l-.964-.267c.046-.165.086-.332.12-.501zm-.952 2.379c.184-.29.346-.594.486-.908l.914.405c-.16.36-.345.706-.555 1.038l-.845-.535zm-.964 1.205c.122-.122.239-.248.35-.378l.758.653a8.073 8.073 0 0 1-.401.432l-.707-.707z"/><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg><span data-translate="purchase_history"></span></h2>
+                    <div class="list" id="historyList"></div>
+                    <button class="clear-btn" id="clearHistoryBtn" style="margin-top: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg><span data-translate="clear_history"></span></button>
+                </div>
+                <div class="card tab-content" id="plannerTab">
+                    <h2 class="card-title"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg><span data-translate="monthly_planner"></span></h2>
+                    <div class="planner" id="monthlyPlanner"></div>
+                </div>
+                <div class="card tab-content" id="financialTab">
+                    <h2 class="card-title"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M11 6.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1z"/><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg><span data-translate="financial_planner"></span></h2>
+                    <div class="financial-planner-grid">
+                        <div>
+                            <div class="form-group"><input type="number" id="salaryInput" data-translate="salary_placeholder"></div>
+                            <h3 data-translate="add_expense"></h3>
+                            <div class="input-group"><input type="text" id="expenseNameInput" data-translate="expense_name_placeholder"><input type="number" id="expenseAmountInput" data-translate="amount_placeholder" style="border-radius: 0; border-left: 0; border-right: 0;"><button class="add-btn" id="addExpenseBtn">+</button></div>
+                            <ul class="list" id="expenseList"></ul>
+                        </div>
+                        <div>
+                            <div id="financialSummary">
+                                <h3 data-translate="monthly_summary"></h3>
+                                <p><span data-translate="total_salary"></span> <span id="summarySalary"></span></p>
+                                <p><span data-translate="total_expenses"></span> <span id="summaryExpenses"></span></p>
+                                <p style="border-top: 1px solid var(--secondary-color); padding-top: 10px;"><strong data-translate="remaining_balance"></strong> <strong id="summaryBalance"></strong></p>
+                            </div>
+                            <div id="chartContainer"><canvas id="expenseChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card tab-content" id="calculatorsTab">
+                    <h2 class="card-title"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M12 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8zM4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H4z"/><path d="M4 2.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-2zm0 4a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm0 3a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm0 3a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm3-6a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm0 3a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm0 3a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm3-6a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1zm0 3a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-4z"/></svg><span data-translate="calculators"></span></h2>
+                    <div class="calculators-container">
+                        <div class="calculator-section">
+                            <h3 data-translate="loan_emi_calculator"></h3>
+                            <div class="calc-form-group"><label for="loanAmount" data-translate="loan_amount"></label><input type="number" id="loanAmount" placeholder="e.g., 500000"></div>
+                            <div class="calc-form-group"><label for="interestRate" data-translate="interest_rate"></label><input type="number" id="interestRate" placeholder="e.g., 8.5"></div>
+                            <div class="calc-form-group"><label for="loanTenure" data-translate="loan_tenure"></label><input type="number" id="loanTenure" placeholder="e.g., 5"></div>
+                            <button class="action-btn" id="calculateEmiBtn" data-translate="calculate"></button>
+                            <div class="calc-results" id="emiResults" style="margin-top: 20px;"></div>
+                        </div>
+                        <div class="calculator-section">
+                             <h3 data-translate="standard_calculator"></h3>
+                             <div class="standard-calculator">
+                                 <div class="calc-display" id="calcDisplay">0</div>
+                                 <div class="calc-buttons" id="calcButtons">
+                                     <button class="calc-btn clear">AC</button><button class="calc-btn operator">DEL</button><button class="calc-btn operator">%</button><button class="calc-btn operator">÷</button>
+                                     <button class="calc-btn">7</button><button class="calc-btn">8</button><button class="calc-btn">9</button><button class="calc-btn operator">×</button>
+                                     <button class="calc-btn">4</button><button class="calc-btn">5</button><button class="calc-btn">6</button><button class="calc-btn operator">-</button>
+                                     <button class="calc-btn">1</button><button class="calc-btn">2</button><button class="calc-btn">3</button><button class="calc-btn operator">+</button>
+                                     <button class="calc-btn">0</button><button class="calc-btn">.</button><button class="calc-btn equals">=</button>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="planner-modal" id="plannerModal">
+        <div class="planner-modal-content">
+            <div class="planner-modal-header"><h3 class="planner-modal-title" id="plannerModalTitle"></h3><button class="close-planner-modal" id="closePlannerModal">×</button></div>
+            <div id="plannerModalContent">
+                <div class="planner-items-list" id="plannerItemsList"></div>
+                <div class="planner-custom-item"><input type="text" class="planner-custom-input" id="plannerCustomInput" placeholder="Add custom item..."><button class="planner-add-custom" id="plannerAddCustom">+</button></div>
+                <button class="planner-save-btn" id="plannerSaveBtn" data-translate="save_plan"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // --- TRANSLATIONS (ABBREVIATED FOR SCRIPT LENGTH) ---
+    const translations = {
+        en: { app_title: "Smart Shopping List & Bought Planner", shopping_list_tab: "Shopping", history_tab: "History", planner_tab: "Monthly Shopping", financial_planner_tab: "Financial Planner", calculators_tab: "Calculators", shopping_list: "Shopping List", add_item_placeholder: "Add an item...", add: "Add", clear_all: "Clear All", share: "Share", save: "Save as Image", purchase_history: "Purchase History", clear_history: "Clear History", monthly_planner: "Monthly Planner", confirm_clear: "Are you sure you want to clear all items?", confirm_clear_history: "Are you sure you want to clear all history?", financial_planner: "Financial Planner", salary_placeholder: "Enter your monthly salary...", add_expense: "Add Expense", expense_name_placeholder: "Expense name (e.g., Rent)", amount_placeholder: "Amount", monthly_summary: "Monthly Summary", total_salary: "Total Salary", total_expenses: "Total Expenses", remaining_balance: "Remaining Balance", no_expenses: "No expenses added yet.", calculators: "Calculators", loan_emi_calculator: "Loan/EMI Calculator", loan_amount: "Loan Amount (₹)", interest_rate: "Annual Interest Rate (%)", loan_tenure: "Loan Tenure (Years)", calculate: "Calculate", monthly_emi: "Monthly EMI", total_interest: "Total Interest", total_payment: "Total Payment", standard_calculator: "Standard Calculator", empty_list: "Your shopping list is empty.", empty_history: "No purchase history yet.", added: "Added", purchased: "Purchased", save_plan: "Save Plan", item_removed: "Item removed.", list_empty_to_save: "List is empty, nothing to save.", list_empty_to_share: "List is empty, nothing to share." },
+        hi: { app_title: "स्मार्ट शॉपिंग और प्लानर", shopping_list_tab: "शॉपिंग", history_tab: "इतिहास", planner_tab: "मासिक शॉपिंग", financial_planner_tab: "वित्तीय योजना", calculators_tab: "कैलकुलेटर", shopping_list: "खरीदारी सूची", add_item_placeholder: "आइटम जोड़ें...", add: "जोड़ें", clear_all: "सभी साफ करें", share: "साझा करें", save: "इमेज सेव करें", purchase_history: "खरीद इतिहास", clear_history: "इतिहास साफ करें", monthly_planner: "मासिक योजनाकार", confirm_clear: "क्या आप वाकई सभी आइटम साफ करना चाहते हैं?", confirm_clear_history: "क्या आप वाकई पूरा इतिहास साफ करना चाहते हैं?", financial_planner: "वित्तीय योजनाकार", salary_placeholder: "मासिक वेतन दर्ज करें...", add_expense: "खर्च जोड़ें", expense_name_placeholder: "खर्च का नाम (उदा. किराया)", amount_placeholder: "राशि", monthly_summary: "मासिक सारांश", total_salary: "कुल वेतन", total_expenses: "कुल खर्च", remaining_balance: "शेष राशि", no_expenses: "अभी तक कोई खर्च नहीं जोड़ा गया है।", calculators: "कैलकुलेटर", loan_emi_calculator: "लोन/ईएमआई कैलकुलेटर", loan_amount: "लोन राशि (₹)", interest_rate: "वार्षिक ब्याज दर (%)", loan_tenure: "लोन अवधि (वर्ष)", calculate: "गणना करें", monthly_emi: "मासिक ईएमआई", total_interest: "कुल ब्याज", total_payment: "कुल भुगतान", standard_calculator: "मानक कैलकुलेटर", empty_list: "आपकी खरीदारी की सूची खाली है।", empty_history: "कोई खरीद इतिहास नहीं है।", added: "जोड़ा गया", purchased: "खरीदा गया", save_plan: "योजना सहेजें", item_removed: "आइटम हटाया गया।", list_empty_to_save: "सूची खाली है, सहेजने के लिए कुछ भी नहीं है।", list_empty_to_share: "सूची खाली है, साझा करने के लिए कुछ भी नहीं है।" },
+    }; // Add other languages here if needed
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const allElements = { itemInput: document.getElementById('itemInput'), addBtn: document.getElementById('addBtn'), shoppingList: document.getElementById('shoppingList'), clearBtn: document.getElementById('clearBtn'), shareBtn: document.getElementById('shareBtn'), saveBtn: document.getElementById('saveBtn'), historyList: document.getElementById('historyList'), clearHistoryBtn: document.getElementById('clearHistoryBtn'), monthlyPlanner: document.getElementById('monthlyPlanner'), themeToggle: document.getElementById('themeToggle'), languageSelector: document.getElementById('languageSelector'), tabButtons: document.querySelectorAll('.tab-btn'), tabContents: document.querySelectorAll('.tab-content'), salaryInput: document.getElementById('salaryInput'), expenseNameInput: document.getElementById('expenseNameInput'), expenseAmountInput: document.getElementById('expenseAmountInput'), addExpenseBtn: document.getElementById('addExpenseBtn'), expenseList: document.getElementById('expenseList'), summarySalary: document.getElementById('summarySalary'), summaryExpenses: document.getElementById('summaryExpenses'), summaryBalance: document.getElementById('summaryBalance'), expenseChartCanvas: document.getElementById('expenseChart'), loanAmountInput: document.getElementById('loanAmount'), interestRateInput: document.getElementById('interestRate'), loanTenureInput: document.getElementById('loanTenure'), calculateEmiBtn: document.getElementById('calculateEmiBtn'), emiResults: document.getElementById('emiResults'), calcDisplay: document.getElementById('calcDisplay'), calcButtons: document.getElementById('calcButtons'), plannerModal: document.getElementById('plannerModal'), closePlannerModal: document.getElementById('closePlannerModal'), plannerModalTitle: document.getElementById('plannerModalTitle'), plannerItemsList: document.getElementById('plannerItemsList'), plannerCustomInput: document.getElementById('plannerCustomInput'), plannerAddCustom: document.getElementById('plannerAddCustom'), plannerSaveBtn: document.getElementById('plannerSaveBtn'), };
+        let currentLanguage = 'en', expenseChart, currentPlannedMonth = null;
+        const productEmojis = { 'apple': '🍎', 'banana': '🍌', 'milk': '🥛', 'bread': '🍞', 'egg': '🥚', 'cheese': '🧀', 'chicken': '🍗', 'meat': '🥩', 'fish': '🐟', 'rice': '🍚', 'potato': '🥔', 'tomato': '🍅', 'onion': '🧅', 'carrot': '🥕', 'coffee': '☕', 'tea': '🍵', 'juice': '🧃', 'water': '💧', 'soap': '🧼', 'shampoo': '🧴', 'pizza': '🍕', 'burger': '🍔' };
+        const defaultPlannerItems = [ 'Milk', 'Bread', 'Eggs', 'Cheese', 'Chicken', 'Rice', 'Pasta', 'Tomatoes', 'Onions', 'Potatoes', 'Apples', 'Bananas', 'Coffee', 'Tea', 'Sugar', 'Flour', 'Oil', 'Salt', 'Pepper', 'Yogurt' ];
+        
+        function init() { loadTheme(); loadLanguage(); setupEventListeners(); applyLanguage(true); }
+        function setupEventListeners() {
+            allElements.addBtn.addEventListener('click', addItem);
+            allElements.itemInput.addEventListener('keypress', e => { if (e.key === 'Enter') addItem(); });
+            allElements.shoppingList.addEventListener('click', e => { if (e.target.closest('.delete-btn')) removeItem(e.target.closest('.list-item').dataset.id); });
+            allElements.clearBtn.addEventListener('click', clearList);
+            allElements.shareBtn.addEventListener('click', shareList);
+            allElements.saveBtn.addEventListener('click', saveListAsImage); // UPDATED
+            allElements.clearHistoryBtn.addEventListener('click', clearHistory);
+            allElements.historyList.addEventListener('click', e => { if (e.target.closest('.history-delete-btn')) removeHistoryItem(e.target.closest('.history-item').dataset.id); });
+            allElements.themeToggle.addEventListener('click', toggleTheme);
+            allElements.languageSelector.addEventListener('change', changeLanguage);
+            allElements.tabButtons.forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+            allElements.addExpenseBtn.addEventListener('click', addExpense);
+            allElements.salaryInput.addEventListener('input', () => { let f = getFinancials(); f.salary = parseFloat(allElements.salaryInput.value) || 0; saveFinancials(f); renderFinancials(); });
+            allElements.expenseList.addEventListener('click', e => { if (e.target.closest('.delete-btn')) removeExpense(e.target.closest('.expense-item').dataset.id); });
+            allElements.calculateEmiBtn.addEventListener('click', calculateEMI);
+            allElements.calcButtons.addEventListener('click', handleCalcButtonClick);
+            allElements.closePlannerModal.addEventListener('click', () => allElements.plannerModal.style.display = 'none');
+            allElements.plannerAddCustom.addEventListener('click', addCustomPlannerItem);
+            allElements.plannerCustomInput.addEventListener('keypress', e => { if (e.key === 'Enter') addCustomPlannerItem(); });
+            allElements.plannerSaveBtn.addEventListener('click', savePlanner);
+        }
+        function applyLanguage(isInitialLoad = false) {
+            const lang = currentLanguage;
+            document.documentElement.lang = lang;
+            document.querySelectorAll('[data-translate]').forEach(el => {
+                const key = el.dataset.translate;
+                if (translations[lang] && translations[lang][key]) {
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') { el.placeholder = translations[lang][key]; } 
+                    else { el.innerText = translations[lang][key]; }
+                }
+            });
+            renderShoppingList(); renderHistory(); renderFinancials(); setupMonthlyPlanner();
+        }
+        function changeLanguage() { currentLanguage = allElements.languageSelector.value; localStorage.setItem('language', currentLanguage); applyLanguage(); }
+        function loadLanguage() { currentLanguage = localStorage.getItem('language') || 'en'; allElements.languageSelector.value = currentLanguage; }
+        function toggleTheme() { const newTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = newTheme; localStorage.setItem('theme', newTheme); renderFinancials(); }
+        function loadTheme() { document.documentElement.dataset.theme = localStorage.getItem('theme') || 'light'; }
+        function switchTab(tabId) { allElements.tabContents.forEach(c => c.classList.remove('active')); allElements.tabButtons.forEach(b => b.classList.remove('active')); document.getElementById(`${tabId}Tab`).classList.add('active'); document.querySelector(`.tab-btn[data-tab='${tabId}']`).classList.add('active'); }
+        function getProductEmoji(name) { for (const [key, emoji] of Object.entries(productEmojis)) { if (name.toLowerCase().includes(key)) return emoji; } return '🛒'; }
+        function addItem() { const text = allElements.itemInput.value.trim(); if (text === '') return; let items = JSON.parse(localStorage.getItem('shoppingList')) || []; items.push({ id: Date.now().toString(), name: text, emoji: getProductEmoji(text), date: new Date().toISOString() }); localStorage.setItem('shoppingList', JSON.stringify(items)); renderShoppingList(); allElements.itemInput.value = ''; }
+        function removeItem(id) { let items = JSON.parse(localStorage.getItem('shoppingList')) || []; const removedItem = items.find(item => item.id === id); if (removedItem) addToHistory(removedItem); items = items.filter(item => item.id !== id); localStorage.setItem('shoppingList', JSON.stringify(items)); renderShoppingList(); }
+        function clearList() { if (confirm(translations[currentLanguage].confirm_clear)) { localStorage.removeItem('shoppingList'); renderShoppingList(); } }
+        function renderShoppingList() { const items = JSON.parse(localStorage.getItem('shoppingList')) || []; allElements.shoppingList.innerHTML = ''; if (items.length === 0) { allElements.shoppingList.innerHTML = `<div class="empty-state">${translations[currentLanguage].empty_list}</div>`; return; } items.forEach(item => { const li = document.createElement('li'); li.className = 'list-item'; li.dataset.id = item.id; li.innerHTML = `<div class="item-content"><span class="item-emoji">${item.emoji}</span><span class="item-name">${item.name}</span></div><button class="delete-btn" title="Delete Item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" style="pointer-events: none;" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg></button>`; allElements.shoppingList.appendChild(li); }); }
+        function shareList() { const items = JSON.parse(localStorage.getItem('shoppingList')) || []; if (items.length === 0) { alert(translations[currentLanguage].list_empty_to_share); return; } const listText = items.map(item => `${item.emoji} ${item.name}`).join('\n'); const shareData = { title: translations[currentLanguage].shopping_list, text: `${translations[currentLanguage].shopping_list}:\n\n${listText}` }; if (navigator.share) { navigator.share(shareData).catch(console.error); } else { alert('List copied to clipboard.'); navigator.clipboard.writeText(shareData.text); } }
+        
+        // --- NEW: Save as Image Function ---
+        function saveListAsImage() {
+            const items = JSON.parse(localStorage.getItem('shoppingList')) || [];
+            if (items.length === 0) { alert(translations[currentLanguage].list_empty_to_save); return; }
+
+            const listImageContainer = document.createElement('div');
+            listImageContainer.id = 'list-for-image';
+            Object.assign(listImageContainer.style, {
+                position: 'absolute', top: '-9999px', left: '-9999px',
+                width: '400px', padding: '20px', backgroundColor: '#ffffff',
+                fontFamily: 'Segoe UI, sans-serif', color: '#2d3436',
+                border: '1px solid #ccc', borderRadius: '10px'
+            });
+
+            let listHtml = `<h2 style="text-align: center; color: #6c5ce7; margin-bottom: 15px;">${translations[currentLanguage].shopping_list}</h2><ul style="list-style: none; padding: 0; margin: 0;">`;
+            items.forEach(item => {
+                listHtml += `<li style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 16px;"><span style="font-size: 20px; margin-right: 10px;">${item.emoji}</span><span>${item.name}</span></li>`;
+            });
+            listHtml += `</ul><p style="text-align: center; margin-top: 15px; font-size: 12px; color: #888;">Generated on: ${new Date().toLocaleDateString(currentLanguage)}</p>`;
+            
+            listImageContainer.innerHTML = listHtml;
+            document.body.appendChild(listImageContainer);
+
+            html2canvas(listImageContainer).then(canvas => {
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = 'shopping-list.png';
+                a.click();
+                document.body.removeChild(listImageContainer);
+            });
+        }
+
+        function addToHistory(item) { let history = JSON.parse(localStorage.getItem('purchaseHistory')) || []; history.unshift({ ...item, purchaseDate: new Date().toISOString() }); localStorage.setItem('purchaseHistory', JSON.stringify(history)); renderHistory(); }
+        function clearHistory() { if (confirm(translations[currentLanguage].confirm_clear_history)) { localStorage.removeItem('purchaseHistory'); renderHistory(); } }
+        function removeHistoryItem(id) { let history = JSON.parse(localStorage.getItem('purchaseHistory')) || []; history = history.filter(item => item.id !== id); localStorage.setItem('purchaseHistory', JSON.stringify(history)); renderHistory(); }
+        function renderHistory() { const history = JSON.parse(localStorage.getItem('purchaseHistory')) || []; allElements.historyList.innerHTML = ''; if (history.length === 0) { allElements.historyList.innerHTML = `<div class="empty-state">${translations[currentLanguage].empty_history}</div>`; return; } history.forEach(item => { const div = document.createElement('div'); div.className = 'history-item'; div.dataset.id = item.id; const addedDate = new Date(item.date).toLocaleString(currentLanguage, { day: 'numeric', month: 'short' }); const purchasedDate = new Date(item.purchaseDate).toLocaleString(currentLanguage, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); div.innerHTML = `<div class="history-info"><div class="history-product">${item.emoji} ${item.name}</div><div class="history-date"><span>${translations[currentLanguage].added}: ${addedDate}</span><span>${translations[currentLanguage].purchased}: ${purchasedDate}</span></div></div><button class="history-delete-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" style="pointer-events: none;" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg></button>`; allElements.historyList.appendChild(div); }); }
+        function setupMonthlyPlanner() { allElements.monthlyPlanner.innerHTML = ''; const months = []; const now = new Date(); for (let i = 0; i < 12; i++) { const d = new Date(now); d.setMonth(now.getMonth() + i); const name = d.toLocaleDateString(currentLanguage, { month: 'long' }); const year = d.getFullYear(); months.push({ id: `${name}-${year}`, name, year }); } months.forEach(month => { const div = document.createElement('div'); div.className = 'planner-item'; div.dataset.month = month.id; div.innerHTML = `<div class="planner-month">${month.name} ${month.year}</div>`; div.addEventListener('click', () => openPlannerModal(month)); allElements.monthlyPlanner.appendChild(div); }); }
+        function openPlannerModal(month) { currentPlannedMonth = month; allElements.plannerModalTitle.textContent = `${month.name} ${month.year}`; const savedPlans = JSON.parse(localStorage.getItem('monthlyPlans')) || {}; const savedItems = savedPlans[month.id] || []; renderPlannerItems(savedItems); allElements.plannerModal.style.display = 'flex'; }
+        function renderPlannerItems(savedItems) { allElements.plannerItemsList.innerHTML = ''; const allItems = [...new Set([...defaultPlannerItems, ...savedItems])]; allItems.forEach(item => { const itemId = item.toLowerCase().replace(/\s+/g, '-'); const isChecked = savedItems.includes(item); const div = document.createElement('div'); div.innerHTML = `<input type="checkbox" id="${itemId}" class="planner-item-checkbox" ${isChecked ? 'checked' : ''}><label for="${itemId}" class="planner-item-label">${getProductEmoji(item)} ${item}</label>`; allElements.plannerItemsList.appendChild(div); }); }
+        function addCustomPlannerItem() { const text = allElements.plannerCustomInput.value.trim(); if (text === '') return; const itemId = text.toLowerCase().replace(/\s+/g, '-'); if (document.getElementById(itemId)) return; const div = document.createElement('div'); div.innerHTML = `<input type="checkbox" id="${itemId}" class="planner-item-checkbox" checked><label for="${itemId}" class="planner-item-label">${getProductEmoji(text)} ${text}</label>`; allElements.plannerItemsList.appendChild(div); allElements.plannerCustomInput.value = ''; }
+        function savePlanner() { if (!currentPlannedMonth) return; const checkedItems = []; allElements.plannerItemsList.querySelectorAll('.planner-item-checkbox:checked').forEach(cb => { const label = cb.nextElementSibling; const itemName = label.textContent.trim().replace(/^[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, ''); checkedItems.push(itemName); }); const savedPlans = JSON.parse(localStorage.getItem('monthlyPlans')) || {}; savedPlans[currentPlannedMonth.id] = checkedItems; localStorage.setItem('monthlyPlans', JSON.stringify(savedPlans)); allElements.plannerModal.style.display = 'none'; }
+        function getFinancials() { return JSON.parse(localStorage.getItem('financials')) || { salary: 0, expenses: [] }; }
+        function saveFinancials(data) { localStorage.setItem('financials', JSON.stringify(data)); }
+        function addExpense() { const name = allElements.expenseNameInput.value.trim(); const amount = parseFloat(allElements.expenseAmountInput.value); if (name === '' || isNaN(amount) || amount <= 0) { alert('Please enter valid details.'); return; } let f = getFinancials(); f.expenses.push({ id: Date.now().toString(), name, amount }); saveFinancials(f); renderFinancials(); allElements.expenseNameInput.value = ''; allElements.expenseAmountInput.value = ''; }
+        function removeExpense(id) { let f = getFinancials(); f.expenses = f.expenses.filter(e => e.id !== id); saveFinancials(f); renderFinancials(); }
+        function renderFinancials() { const f = getFinancials(); allElements.salaryInput.value = f.salary > 0 ? f.salary : ''; const totalExp = f.expenses.reduce((s, e) => s + e.amount, 0); const bal = f.salary - totalExp; const fmt = new Intl.NumberFormat(currentLanguage, { style: 'currency', currency: 'INR' }); allElements.summarySalary.textContent = fmt.format(f.salary); allElements.summaryExpenses.textContent = fmt.format(totalExp); allElements.summaryBalance.textContent = fmt.format(bal); allElements.expenseList.innerHTML = ''; if (f.expenses.length === 0) { allElements.expenseList.innerHTML = `<div class="empty-state" style="padding: 20px 0;">${translations[currentLanguage].no_expenses}</div>`; } else { f.expenses.forEach(e => { const li = document.createElement('li'); li.className = 'expense-item'; li.dataset.id = e.id; li.innerHTML = `<span>${e.name}</span><span>${fmt.format(e.amount)}</span><button class="delete-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="pointer-events: none;"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg></button>`; allElements.expenseList.appendChild(li); });} if (expenseChart) { expenseChart.destroy(); } const labels = f.expenses.map(e => e.name); const data = f.expenses.map(e => e.amount); if (bal > 0) { labels.push(translations[currentLanguage].remaining_balance); data.push(bal); } const isDark = document.documentElement.dataset.theme === 'dark'; expenseChart = new Chart(allElements.expenseChartCanvas, { type: 'pie', data: { labels, datasets: [{ data, backgroundColor: ['#6c5ce7', '#a29bfe', '#fd79a8', '#00b894', '#ffeaa7', '#fab1a0', '#74b9ff', '#ff7675', '#55efc4', '#e17055'], borderColor: isDark ? '#3a4042' : '#ffffff', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: isDark ? '#f8f9fa' : '#2d3436' } } } } }); }
+        function calculateEMI() { const p = parseFloat(allElements.loanAmountInput.value); const rA = parseFloat(allElements.interestRateInput.value); const y = parseFloat(allElements.loanTenureInput.value); if (isNaN(p) || isNaN(rA) || isNaN(y) || p <= 0 || rA <= 0 || y <= 0) { allElements.emiResults.innerHTML = `<p style="color: var(--danger-color)">Please enter valid numbers.</p>`; return; } const r = rA / 12 / 100; const n = y * 12; const emi = (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1); const totalP = emi * n; const totalI = totalP - p; const fmt = new Intl.NumberFormat(currentLanguage, { style: 'currency', currency: 'INR' }); allElements.emiResults.innerHTML = `<p>${translations[currentLanguage].monthly_emi}: <span>${fmt.format(emi)}</span></p><p>${translations[currentLanguage].total_interest}: <span>${fmt.format(totalI)}</span></p><p>${translations[currentLanguage].total_payment}: <span>${fmt.format(totalP)}</span></p>`; }
+        function handleCalcButtonClick(e) { const { target } = e; if (!target.matches('button')) return; const { textContent } = target; let val = allElements.calcDisplay.textContent; if (textContent === 'AC') { allElements.calcDisplay.textContent = '0'; return; } if (textContent === 'DEL') { allElements.calcDisplay.textContent = val.length > 1 ? val.slice(0, -1) : '0'; return; } if (target.classList.contains('equals')) { try { allElements.calcDisplay.textContent = eval(val.replace(/×/g, '*').replace(/÷/g, '/')); } catch { allElements.calcDisplay.textContent = 'Error'; } return; } if (target.classList.contains('operator')) { if (val.slice(-1).match(/[÷×\-+%.]/)) return; allElements.calcDisplay.textContent += textContent; return; } allElements.calcDisplay.textContent = (val === '0' && textContent !== '.') ? textContent : val + textContent; }
+        init();
+    });
+</script>
+
+</body>
+</html>
